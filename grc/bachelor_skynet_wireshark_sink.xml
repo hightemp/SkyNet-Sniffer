@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<block>
+  <name>SKYNET Wireshark Sink</name>
+  <key>bachelor_skynet_wireshark_sink</key>
+  <category>bachelor</category>
+  <import>import bachelor</import>
+  <make>bachelor.skynet_wireshark_sink()</make>
+    <sink>
+      <name>in</name>
+      <type>message</type>
+    </sink>
+    <source>
+      <name>out</name>
+      <type>byte</type>
+    </source>
+  </block>
