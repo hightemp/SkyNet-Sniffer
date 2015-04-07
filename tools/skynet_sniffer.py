@@ -3,7 +3,7 @@
 # Gnuradio Python Flow Graph
 # Title: SkyNet Sniffer
 # Author: Fabian Haerer
-# Generated: Thu Mar 12 23:15:31 2015
+# Generated: Wed Apr  1 17:47:16 2015
 ##################################################
 
 from gnuradio import analog
@@ -34,7 +34,7 @@ class skynet_sniffer(gr.top_block):
         self.trans = trans = 16
         self.samp_per_sym = samp_per_sym = samp_rate_after_FIR_filter/50000
         self.frequency = frequency = 867.908e6
-        self.filename = filename = "./"+ strftime("SkyNet_Capture_%Y-%m-%d_%H:%M:%S")+".pcap"
+        self.filename = filename = filename = "./"+ strftime("SkyNet_Capture_%Y-%m-%d_%H:%M:%S")+".pcap"
         self.cutoff = cutoff = 2*fsk_deviation_hz/1e3
 
         ##################################################
@@ -155,6 +155,4 @@ if __name__ == '__main__':
     (options, args) = parser.parse_args()
     tb = skynet_sniffer()
     tb.start()
-    raw_input('Press Enter to quit: ')
-    tb.stop()
     tb.wait()

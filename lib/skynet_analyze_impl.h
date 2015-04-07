@@ -38,7 +38,7 @@ namespace gr {
      bool packageFound;
      int sample_rate;
      float symb_per_second;
-     struct timeval packet_start_time ;
+     struct timeval packet_start_time;
 
      public:
       skynet_analyze_impl(int samp_rate, float symbols_per_second);

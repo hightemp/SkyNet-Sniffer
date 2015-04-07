@@ -108,9 +108,9 @@ void TFT_SPI_data_out ( uint8_t data );
 void TFT_SetBacklightPWMValue( uint8_t BL_value );
 
 
-void TFT_turnOff();
+void TFT_turnDisplayOff();
 
-void TFT_turnOn();
+void TFT_turnDisplayOn();
 
 
 #endif

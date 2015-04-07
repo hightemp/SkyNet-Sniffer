@@ -116,7 +116,6 @@ namespace gr {
                     microSeconds+=1e6;
                 microSeconds-= time.tv_usec;
                 uebertragungsDauer = microSeconds+seconds*1e6;
-                std::cout<<"Übertragungsdauer: "<<seconds + microSeconds/1e6 <<" s"<< std::endl;
             }
 
 
