@@ -26,6 +26,7 @@
 #include "skynet_analyze_impl.h"
 #include <numeric>
 #include <stdio.h>
+#include <volk/volk.h>
 #include "skynet_wireshark_sink_impl.h"
 #include "bachelor/constants.h"
 
@@ -38,28 +39,29 @@ namespace gr {
 
 
     skynet_analyze::sptr
-    skynet_analyze::make(int samp_rate, float symbols_per_second)
+    skynet_analyze::make(int samp_rate, float symbols_per_second, int threshold)
     {
       return gnuradio::get_initial_sptr
-        (new skynet_analyze_impl(samp_rate, symbols_per_second));
+        (new skynet_analyze_impl(samp_rate, symbols_per_second,threshold));
     }
 
     /*
      * The private constructor
      */
-    skynet_analyze_impl::skynet_analyze_impl(int samp_rate, float symbols_per_second)
+    skynet_analyze_impl::skynet_analyze_impl(int samp_rate, float sampels_per_symbol, int threshold)
       : gr::sync_block("skynet_analyze",
               gr::io_signature::make(2,3, sizeof(float)),
               gr::io_signature::make(0,0,0))
     {
         message_port_register_out(PMT_STRING_OUT);
-        rec_buf = new std::vector<float>;
-        rssi_buf = new std::vector<float>;
-        this->sample_rate = samp_rate;
-        this->symb_per_second = symbols_per_second;
-        packageFound = false;
+        d_rec_buf = new std::vector<float>;
+        d_rssi_buf = new std::vector<float>;
+        this->d_sample_rate = samp_rate;
+        this->d_sampels_per_symbol = sampels_per_symbol;
+        d_threshold = threshold;
+        d_packageFound = false;
         clear_buffer();
-
+        d_puffer = -2;
     }
 
     /*
@@ -69,21 +71,31 @@ namespace gr {
     {
     }
 
-    void skynet_analyze_impl::clear_buffer(){
-        rec_buf->clear();
-        rssi_buf->clear();
+    void
+    skynet_analyze_impl::clear_buffer()
+    {
+        d_rec_buf->clear();
+        d_rssi_buf->clear();
     }
 
-    void skynet_analyze_impl::add_item_to_buffer(float item) {
-        add_item_to_buffer(item,rec_buf);
+    void
+    skynet_analyze_impl::add_item_to_buffer(float item)
+    {
+        add_item_to_buffer(item,d_rec_buf);
     }
 
-    void skynet_analyze_impl::add_item_to_buffer(float item, std::vector<float> *buffer){
+    void
+    skynet_analyze_impl::add_item_to_buffer(float item, std::vector<float> *buffer)
+    {
         buffer->push_back(item);
     }
 
-    void skynet_analyze_impl::handlePackage(){
+    void
+    skynet_analyze_impl::handle_package()
+    {
 
+        if(d_rec_buf->size()< d_sampels_per_symbol*32) // Nichtmal ein Byte enhalten, nutzlos
+            return;
         struct timeval packet_end_time;
         gettimeofday(&packet_end_time,NULL);
 
@@ -91,104 +103,103 @@ namespace gr {
 
 
         uint start = 0;
-        uint end = rec_buf->size();
-        int blank = 50e-6*sample_rate;// Skip first 50 us.
-        start = start+blank;
+        uint end = d_rec_buf->size();
 #if debug
         FILE* file;
-        file = fopen("./debug.csv","a");
+        file = fopen("./debug_analyze.csv","a");
         for(int i = 0;i<end;i++) {
-            fprintf(file,"%f;",rec_buf->at(i));
+            fprintf(file,"%f;",d_rec_buf->at(i));
         }
         fprintf(file,"~");
 #endif
-        float average = ((float)std::accumulate(rec_buf->begin()+start+2*symb_per_second,rec_buf->begin()+start+78*symb_per_second,0))/((float)76*symb_per_second);
-        uint firstMax = 0, secondMax = 0;
-        /*
-        for(uint i = start+5;i< (end-1) && rec_buf->at(i) <= rec_buf->at(i+1) ; i++) { // Ende der Steigung erkennen
-            firstMax = i;
+
+        //Durchschnitt der Werte der Präambel, alle Werte größer -> 1, alle kleiner -> 0
+        float average = 0;
+        for(std::vector<float>::iterator it = d_rec_buf->begin()+start+10*d_sampels_per_symbol;it !=  d_rec_buf->begin()+start+48*d_sampels_per_symbol; ++it )
+            average +=*it;
+        average /= 38*d_sampels_per_symbol;
+
+        average = 0;
+        uint firstMax = 0;
+        if(d_rec_buf->size()> 10*d_sampels_per_symbol) {
+            firstMax = std::max_element(d_rec_buf->begin()+5*d_sampels_per_symbol, d_rec_buf->begin()+10*d_sampels_per_symbol) - d_rec_buf->begin();
+            firstMax = firstMax%((uint)d_sampels_per_symbol);
         }
-        std::vector<float>::iterator it =  std::max_element(rec_buf->begin()+firstMax,rec_buf->begin()+firstMax+symb_per_second*2.5);
-        firstMax = it-rec_buf->begin() - symb_per_second*2;*/
-        int count_1 = 0, count_0 = 0;
-        bool fuenf_einsen=false;
-        for(int i = start; i< end; i++) {
-            if(rec_buf->at(i) > average) {
-                    count_1 ++;
-                    count_0 = 0;
 
-                    if(count_1>= 5)
-                        fuenf_einsen = true;
-                    else
-                        fuenf_einsen = false;
+        //std::cout<< "Packet length: "<<end-start<<" Symbol per Second " << symb_per_second<<" Average: " << average << " First Maximum: "<< firstMax << " SecondMax: " << it-rec_buf->begin() << std::endl;
 
-            } else {
-                count_0 ++;
-                count_1 = 0;
+        int preamble_start = firstMax;
+
+
+        int pos = 0;
+        bool sync_word_found= false;
+        uint32_t sync_word = 0xaaaa2dd4; // 0xaaaa wird benötigt, da noch vor der Präambel Bits so erkannt werden, dass 0x2dd4 nur einen bitfehler aufweist
+        unsigned char preamble_byte = 0xaa;
+        int preamble_start_pos = -1;
+        uint32_t data = 0;
+        for(int i = preamble_start; i< end; i+= d_sampels_per_symbol) { // Suche nach dem Syncword
+            pos ++;
+
+            data = (data << 1) | d_rec_buf->at(i) >= average;
+
+            if(preamble_start_pos <= -1) { // noch kein 0xaa vorhanden
+                uint32_t wrong_bits = ((unsigned char)data) ^ preamble_byte;
+                uint32_t  wrong_bits_count =0;
+                volk_32u_popcnt(&wrong_bits_count, wrong_bits);
+                if(wrong_bits_count <= d_threshold) {
+                    preamble_start_pos = pos-8;
+                }
             }
 
-            if(count_0 >= symb_per_second && fuenf_einsen) {
-                firstMax = i - symb_per_second-1;
+            uint32_t wrong_bits = data ^ sync_word;
+            uint32_t  wrong_bits_count =0;
+            volk_32u_popcnt(&wrong_bits_count, wrong_bits);
+
+            if(wrong_bits_count <= d_threshold) {
+                sync_word_found = true;
+                pos -= 16;
                 break;
             }
         }
+        if(!sync_word_found)
+            return;
 
-        //rec_buf->at(100000);
-        //std::cout<< "Packet length: "<<end-start<<" Symbol per Second " << symb_per_second<<" Average: " << average << " First Maximum: "<< firstMax << " SecondMax: " << it-rec_buf->begin() << std::endl;
-
-        int preamble_location = -1;
-      /*  for(int i = 0;i<end;i++) {
-
-            if(rec_buf->at(i) >= average && preamble_location == -1) {
-                preamble_location = i;
-
-            }
-        }*/
-        preamble_location = firstMax;
-
-        // 000 sollte an stelle 63,64,65 stehen
-        int pos = 0;
-        int endPos = end-symb_per_second*2;
-        for(int i = preamble_location; i< endPos; i+= symb_per_second) {
-            pos ++;
-            if( rec_buf->at(i) < average && rec_buf->at(i+symb_per_second) < average && rec_buf->at(i+2*symb_per_second) < average )
-                    break;
+        int shift = 0;
+        if(sync_word_found) {
+            shift = (pos -64)*d_sampels_per_symbol;
+        } else  if(preamble_start_pos > 0){
+            shift = preamble_start_pos *d_sampels_per_symbol;
         }
-        //std::cout << "Position: " << pos <<  "   "<< pos*symb_per_second <<std::endl;
+        preamble_start += shift;
 
-        int shift = (pos -64)*symb_per_second;
-        preamble_location += shift;
+
 
         std::vector<char>bits;
+
+        if(preamble_start< 0) {
+            while (preamble_start< 0) {
+                preamble_start+=d_sampels_per_symbol;
+                bits.push_back(0);
+            }
+
+        }
+
         float rssi = 0;
         int offset = 0;
-        if(preamble_location< 0)
-            preamble_location = 0;
-        for(float i= preamble_location;i < rec_buf->size() &&  i <std::floor((end-preamble_location)/symb_per_second)*symb_per_second;i+= symb_per_second) {
-            offset = i/10000;
+        float ende = std::min(((float)d_rec_buf->size()-10),preamble_start + std::floor((end-preamble_start)/d_sampels_per_symbol)*d_sampels_per_symbol);
+        for(float i= preamble_start;i < ende ;i+= d_sampels_per_symbol) {
+            offset = i/12000;
 #if debug
                 fprintf(file,"%d;",(int) i+offset);
 #endif
 
-            bits.push_back(rec_buf->at(i+offset)>=average);
-            rssi+= rssi_buf->at(i+offset);
-
+            bits.push_back(d_rec_buf->at(i+offset)>=average);
+            rssi+= d_rssi_buf->at(i+offset);
         }
         rssi/= bits.size();
-        //std::cout << "RSSI " << rssi << " Packet size:" << bits.size() << std::endl;
-
-
-
-    /*    for(int i = 2; i< bits.size(); i++) {
-            if(!(bits.at(i-2) == 1 && bits.at(i-1) == 0 && bits.at(i) == 1))
-                shift++;
-            else if(bits.at(i-2) == 1 && bits.at(i-1) == 0)
-                break;
-        }*/
-
-      /*  for(shift = 0;shift+69 < bits.size() &&( bits.at(shift+68) == 0 || bits.at(shift +69) == 0); shift++) { //00101101110101
+        if(bits.size() < 8) { // nichtmal ein Byte empfangen, kann verworfen werden.
+            return;
         }
-        std::cout<< "Shift " <<  shift << std::endl;*/
 
 #if debug
         fprintf(file,"~%f~0~",average);
@@ -198,24 +209,31 @@ namespace gr {
         fprintf(file,"\n");
         fclose(file);
 #endif
-//        if (bits.size()>=2 && !(bits.at(0) == 1 && bits.at(1)== 0))
-//            shift = 1;
+        int packetLength =0;
+        if(bits.size() >=96) {
+            const char* bits_data =  bits.data();
+            size_t length;
+            bits_data += 80;
+            unsigned char *a = to_byte_array(bits_data,16,length);
+            packetLength =a[0];
+            packetLength = (packetLength<<8) + a[1];
+        }
 
         pmt::pmt_t header = pmt::make_dict();
-        header = pmt::dict_add(header,PMT_STRING_TIME_START_SEC,pmt::mp(packet_start_time.tv_sec));
-        header = pmt::dict_add(header,PMT_STRING_TIME_START_USEC,pmt::mp(packet_start_time.tv_usec));
+        header = pmt::dict_add(header,PMT_STRING_TIME_START_SEC,pmt::mp(d_packet_start_time.tv_sec));
+        header = pmt::dict_add(header,PMT_STRING_TIME_START_USEC,pmt::mp(d_packet_start_time.tv_usec));
         header = pmt::dict_add(header,PMT_STRING_TIME_STOP_SEC,pmt::mp(packet_end_time.tv_sec));
         header = pmt::dict_add(header,PMT_STRING_TIME_STOP_USEC,pmt::mp(packet_end_time.tv_usec));
         header = pmt::dict_add(header,PMT_STRING_RSSI,pmt::mp(rssi));
 
-        pmt::pmt_t vec = pmt::make_u8vector(bits.size(),0);
+        pmt::pmt_t vec = pmt::make_u8vector(std::min(96+packetLength*8,(int) bits.size()),0);
         size_t vec_size;
         u_int8_t *elements = pmt::u8vector_writable_elements(vec,vec_size);
         for(int i = 0;i< vec_size;i++)
             elements[i] = bits.at(i);
         pmt::pmt_t message = pmt::cons(header,vec);
         message_port_pub(PMT_STRING_OUT, message);
-        std::cout << "Paket received: Size: " << vec_size/8 << " Byte RSSI: " << rssi<< std::endl;
+//        std::cout << "OLDPacket received: Size: " << ((float)vec_size)/(float)8 << " Byte, RSSI: " << rssi << "  " << average<< std::endl;
     }
 
     int
@@ -233,21 +251,42 @@ namespace gr {
 
         //packageFound = false; // True wenn der Trigger einmal 1 war, zum Erkennen des PacketEndes
         for(uint i = 0;i< noutput_items;i++) {
-            if(trig[i] >= 0.9) {
-                if(!packageFound) // Anfang der Übertragung
-                    gettimeofday(&packet_start_time,NULL);
+            if(trig[i] >= 0.9 || d_puffer >0) {
+                if(!d_packageFound) // Anfang der Übertragung
+                    gettimeofday(&d_packet_start_time,NULL);
                 add_item_to_buffer(in[i]);
                 if(rssi != NULL)
-                    add_item_to_buffer(rssi[i], rssi_buf);
-                packageFound = true;
-            } else if(trig[i] == 0 && packageFound) {
-                packageFound = false;
-                handlePackage();
+                    add_item_to_buffer(rssi[i], d_rssi_buf);
+                d_packageFound = true;
+                if(d_puffer > 0)
+                    d_puffer--;
+            } else if(trig[i] == 0 && d_packageFound) { // noch 2 Bit Puffer hinzufügen
+
+                if(d_puffer == -2) {
+
+                    d_puffer = 16*d_sampels_per_symbol;
+                }
+            } if(d_puffer == 0) {
+                d_packageFound = false;
+                handle_package();
                 clear_buffer();
+                d_puffer = -2;
             }
         }
         // Tell runtime system how many output items we produced.
         return noutput_items;
+    }
+
+    unsigned char*
+    skynet_analyze_impl::to_byte_array(const char* bitArray, const size_t& inLength, size_t& outputLength) {
+        outputLength = inLength/8;
+        unsigned char* array =  new unsigned char[outputLength];
+        uint bitIndex;
+        for(int i = 0;i<outputLength;i+=1) {
+            bitIndex = i*8;
+            array[i] = bitArray[bitIndex]<<7 | bitArray[bitIndex+1]<< 6| bitArray[bitIndex+2]<< 5| bitArray[bitIndex+3]<< 4| bitArray[bitIndex+4]<< 3| bitArray[bitIndex+5]<<2 | bitArray[bitIndex+6]<<1 | bitArray[bitIndex+7];
+        }
+        return array;
     }
 
   } /* namespace bachelor */

@@ -54,7 +54,7 @@ namespace gr {
         hdr->version_minor = 4;
         hdr->thiszone=0;
         hdr->sigfigs=0;
-        hdr->snaplen=65536;
+        hdr->snaplen=65535;
         hdr->network=148;
     }
 
@@ -68,13 +68,14 @@ namespace gr {
     }
 
     uint8_t *
-    skynet_wireshark_sink_impl::toByteArray(const uint8_t* bitArray, const size_t& inLength, size_t& outputLength) {
-        outputLength = inLength/8;
-        uint8_t* array = (uint8_t*) new uint8_t[outputLength];
+    skynet_wireshark_sink_impl::to_byte_array(const uint8_t* bit_array, const size_t& in_length, size_t& output_length)
+    {
+        output_length = in_length/8;
+        uint8_t* array = (uint8_t*) new uint8_t[output_length];
         uint bitIndex;
-        for(int i = 0;i<outputLength;i+=1) {
+        for(int i = 0;i<output_length;i+=1) {
             bitIndex = i*8;
-            array[i] = bitArray[bitIndex]<<7 | bitArray[bitIndex+1]<< 6| bitArray[bitIndex+2]<< 5| bitArray[bitIndex+3]<< 4| bitArray[bitIndex+4]<< 3| bitArray[bitIndex+5]<<2 | bitArray[bitIndex+6]<<1 | bitArray[bitIndex+7];
+            array[i] = bit_array[bitIndex]<<7 | bit_array[bitIndex+1]<< 6| bit_array[bitIndex+2]<< 5| bit_array[bitIndex+3]<< 4| bit_array[bitIndex+4]<< 3| bit_array[bitIndex+5]<<2 | bit_array[bitIndex+6]<<1 | bit_array[bitIndex+7];
         }
         return array;
     }
@@ -89,7 +90,7 @@ namespace gr {
             pmt::pmt_t msg = delete_head_blocking(PMT_STRING_IN);
 
             struct timeval time,endTime ;
-            uint uebertragungsDauer;
+            uint uebertragungs_dauer;
             gettimeofday(&time,NULL);
 
             if(!pmt::is_pair(msg)) {
@@ -115,13 +116,13 @@ namespace gr {
                 if (pmt::to_long(usec)< time.tv_usec)
                     microSeconds+=1e6;
                 microSeconds-= time.tv_usec;
-                uebertragungsDauer = microSeconds+seconds*1e6;
+                uebertragungs_dauer = microSeconds+seconds*1e6;
             }
 
 
             pmt::pmt_t vec = pmt::cdr(msg);
             size_t vec_size, byteVec_size;
-            const uint8_t* data =toByteArray( pmt::u8vector_elements(vec,vec_size),vec_size,byteVec_size);
+            const uint8_t* data =to_byte_array( pmt::u8vector_elements(vec,vec_size),vec_size,byteVec_size);
             float rssi = pmt::to_double(pmt::dict_ref(header,PMT_STRING_RSSI,PMT_CONST_INT_MINUS_1));
             p_msg_len = sizeof(pcaprec_hdr_s) + sizeof(float)  + sizeof(uint) + sizeof(uint8_t)*byteVec_size;
             p_msg_offset = 0;
@@ -133,7 +134,7 @@ namespace gr {
             hdr->orig_len= byteVec_size + sizeof(float) + sizeof(uint);
 
             memcpy(p_msg+sizeof(pcaprec_hdr_s),&rssi,sizeof(float));
-            memcpy(p_msg+sizeof(pcaprec_hdr_s) + sizeof(float), &uebertragungsDauer,sizeof(uint));
+            memcpy(p_msg+sizeof(pcaprec_hdr_s) + sizeof(float), &uebertragungs_dauer,sizeof(uint));
             //memcpy(p_msg+sizeof(pcaprec_hdr_s) + sizeof(float) + sizeof(long), &endTime.tv_usec,sizeof(long));
             memcpy(p_msg+sizeof(pcaprec_hdr_s) + sizeof(float)+ sizeof(uint),data,byteVec_size);
 

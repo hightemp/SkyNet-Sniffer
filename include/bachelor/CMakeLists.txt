@@ -23,5 +23,6 @@
 install(FILES
     api.h
     skynet_analyze.h
-    skynet_wireshark_sink.h DESTINATION include/bachelor
+    skynet_wireshark_sink.h
+    skynet_extended_analyze.h DESTINATION include/bachelor
 )

@@ -18,5 +18,6 @@
 # Boston, MA 02110-1301, USA.
 install(FILES
     bachelor_skynet_analyzer.xml
-    bachelor_skynet_wireshark_sink.xml DESTINATION share/gnuradio/grc/blocks
+    bachelor_skynet_wireshark_sink.xml
+    bachelor_skynet_extended_analyze.xml DESTINATION share/gnuradio/grc/blocks
 )

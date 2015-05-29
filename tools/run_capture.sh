@@ -1,4 +1,4 @@
 #!/bin/sh
-while true
-    do python skynet_sniffer.py 2>&1 | sudo pi-display/anzeige
-done
+sleep 3 # bis Uhrzeit eingestellt ist
+cd /home/ubuntu/gr-bachelor/tools
+sudo pi-display/anzeige ./skynet_sniffer.py

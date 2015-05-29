@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<block>
+  <name>SkyNet Extended Receiver</name>
+  <key>bachelor_skynet_extended_analyze</key>
+  <category>bachelor</category>
+  <import>import bachelor</import>
+  <make>bachelor.skynet_extended_analyze()</make>
+  <!-- Make one 'param' node for every Parameter you want settable from the GUI.
+       Sub-nodes:
+       * name
+       * key (makes the value accessible as $keyname, e.g. in the make node)
+       * type -->
+   <sink>
+     <name>Signal</name>
+     <type>float</type>
+   </sink>
+
+   <sink>
+     <name>trig</name>
+     <type>float</type>
+     <optional>1</optional>
+   </sink>
+
+   <sink>
+     <name>rssi</name>
+     <type>float</type>
+     <optional>1</optional>
+   </sink>
+
+
+  <source>
+    <name>out</name>
+    <type>message</type>
+    <optional>1</optional>
+  </source>
+
+</block>

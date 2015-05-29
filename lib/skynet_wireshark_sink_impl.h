@@ -34,7 +34,7 @@ namespace gr {
         uint p_msg_offset;
 
 
-        uint8_t* toByteArray(const uint8_t* bitArray, const size_t& inLength, size_t& outputLength);
+        uint8_t* to_byte_array(const uint8_t* bit_array, const size_t& in_length, size_t& output_length);
 
      public:
 

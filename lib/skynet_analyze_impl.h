@@ -31,17 +31,19 @@ namespace gr {
      private:
      void add_item_to_buffer(float);
      void add_item_to_buffer(float item, std::vector<float>* buffer);
-     void handlePackage();
+     unsigned char* to_byte_array(const char* bitArray, const size_t& inLength, size_t& outputLength);
+     void handle_package();
      void clear_buffer();
-     std::vector<float>* rec_buf;
-     std::vector<float>* rssi_buf;
-     bool packageFound;
-     int sample_rate;
-     float symb_per_second;
-     struct timeval packet_start_time;
-
+     std::vector<float>* d_rec_buf;
+     std::vector<float>* d_rssi_buf;
+     bool d_packageFound;
+     unsigned int d_sample_rate;
+     unsigned int d_threshold;
+     float d_sampels_per_symbol;
+     struct timeval d_packet_start_time;
+     int d_puffer;
      public:
-      skynet_analyze_impl(int samp_rate, float symbols_per_second);
+      skynet_analyze_impl(int samp_rate, float sampels_per_symbol, int threshold);
       ~skynet_analyze_impl();
 
       // Where all the action really happens

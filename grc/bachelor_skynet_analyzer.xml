@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <block>
-  <name>SKYNET Receiverr</name>
+  <name>SkyNet Simple Receiver</name>
   <key>bachelor_skynet_analyze</key>
   <category>bachelor</category>
   <import>import bachelor</import>
-  <make>bachelor.skynet_analyze($samp,$symbols_per_second)</make>
+  <make>bachelor.skynet_analyze($samp_rate,$sampels_per_symbol, $threshold)</make>
   <!-- Make one 'param' node for every Parameter you want settable from the GUI.
        Sub-nodes:
        * name
@@ -12,14 +12,20 @@
        * type -->
     <param>
        <name>Sample Rate</name>
-       <key>samp</key>
+       <key>samp_rate</key>
        <type>int</type>
      </param>
 
      <param>
        <name>Samples per Symbol</name>
-       <key>symbols_per_second</key>
+       <key>sampels_per_symbol</key>
        <type>float</type>
+     </param>
+
+     <param>
+       <name>Syncword Threshold</name>
+       <key>threshold</key>
+       <type>int</type>
      </param>
   <!-- Make one 'sink' node per input. Sub-nodes:
        * name (an identifier for the GUI)

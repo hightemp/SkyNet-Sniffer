@@ -1,6 +1,6 @@
 /* -*- c++ -*- */
 /* 
- * Copyright 2014 <+YOU OR YOUR COMPANY+>.
+ * Copyright 2015 <+YOU OR YOUR COMPANY+>.
  * 
  * This is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,8 +19,8 @@
  */
 
 
-#ifndef INCLUDED_BACHELOR_SKYNET_ANALYZE_H
-#define INCLUDED_BACHELOR_SKYNET_ANALYZE_H
+#ifndef INCLUDED_BACHELOR_SKYNET_EXTENDED_ANALYZE_H
+#define INCLUDED_BACHELOR_SKYNET_EXTENDED_ANALYZE_H
 
 #include <bachelor/api.h>
 #include <gnuradio/sync_block.h>
@@ -33,23 +33,24 @@ namespace gr {
      * \ingroup bachelor
      *
      */
-    class BACHELOR_API skynet_analyze : virtual public gr::sync_block
+    class BACHELOR_API skynet_extended_analyze : virtual public gr::sync_block
     {
      public:
-      typedef boost::shared_ptr<skynet_analyze> sptr;
+      typedef boost::shared_ptr<skynet_extended_analyze> sptr;
 
       /*!
-       * \brief Return a shared_ptr to a new instance of bachelor::skynet_analyze.
+       * \brief Return a shared_ptr to a new instance of bachelor::skynet_test2.
        *
-       * \param samp_rate Sample Rate of the incomming stream
-       * \param sampels_per_symbol sps of the signal
-       * \param threshold number of bits that can be wrong in the syncword, to be detected right
+       * To avoid accidental use of raw pointers, bachelor::skynet_test2's
+       * constructor is in a private implementation
+       * class. bachelor::skynet_test2::make is the public interface for
+       * creating new instances.
        */
-      static sptr make(int samp_rate, float sampels_per_symbol, int threshold);
+      static sptr make();
     };
 
   } // namespace bachelor
 } // namespace gr
 
-#endif /* INCLUDED_BACHELOR_SKYNET_ANALYZE_H */
+#endif /* INCLUDED_BACHELOR_SKYNET_EXTENDED_ANALYZE_H */
 

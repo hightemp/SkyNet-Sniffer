@@ -26,7 +26,8 @@ include_directories(${Boost_INCLUDE_DIR})
 link_directories(${Boost_LIBRARY_DIRS})
 list(APPEND bachelor_sources
     skynet_analyze_impl.cc
-    skynet_wireshark_sink_impl.cc )
+    skynet_wireshark_sink_impl.cc
+    skynet_extended_analyze_impl.cc )
 
 set(bachelor_sources "${bachelor_sources}" PARENT_SCOPE)
 if(NOT bachelor_sources)
